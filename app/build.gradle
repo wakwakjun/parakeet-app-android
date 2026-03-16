@@ -3,23 +3,25 @@ plugins {
     id 'kotlin-android'
 }
 
+// アプリ固有の変数定義
 def appName = "budgieapp" 
 def developerName = "myuser"
 
 android {
+    // 内部パッケージ識別子（SDK 35対応）
     namespace "jp.${developerName}.${appName}"
     compileSdk 35
 
-    // --- バージョン自動加算の仕組み ---
-    // 1. GitHub Actionsから直接渡されるプロパティ
-    // 2. 環境変数
-    // 3. どちらもなければデフォルト値「100」
-    def githubRunNumber = project.findProperty('VERSION_CODE') ?: System.getenv("GITHUB_RUN_NUMBER") ?: "100"
-    def autoVersionCode = githubRunNumber.toInteger()
-    def autoVersionName = "1.0.${githubRunNumber}"
+    // --- バージョン管理システム ---
+    // GitHub Actions の RUN_NUMBER があればそれを、なければ 1 を採用
+    def rawVersion = project.findProperty('VERSION_CODE') ?: System.getenv("GITHUB_RUN_NUMBER") ?: "1"
+    def autoVersionCode = rawVersion.toString().toInteger()
+    // 1.0.1, 1.0.2... と自動でインクリメントされる
+    def autoVersionName = "1.0.${autoVersionCode}"
 
     defaultConfig {
-        applicationId "jp.myuser.supercatapp"
+        // インコ版としての新しいApplication ID
+        applicationId "jp.${developerName}.${appName}" 
         minSdk 21
         targetSdk 35
         
@@ -27,11 +29,14 @@ android {
         versionName autoVersionName
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // ★ダイエット設定：使用する言語を限定し、それ以外の数MBに及ぶ翻訳ファイルを削除
+        resConfigs "ja", "en", "pt"
     }
 
     signingConfigs {
         release {
-            // main.ymlで復元するファイル名に合わせる
+            // GitHub ActionsのSecretsから環境変数経由で取得
             storeFile file("release-key.jks") 
             storePassword System.getenv("KEYSTORE_PASSWORD")
             keyAlias System.getenv("KEY_ALIAS")
@@ -41,11 +46,12 @@ android {
 
     buildTypes {
         release {
+            // リリースビルドにのみ署名を適用
             signingConfig signingConfigs.release
             
-            // ★極限ダイエット設定
-            minifyEnabled true      // 未使用コード削除
-            shrinkResources true    // 未使用リソース削除
+            // ★極限ダイエット設定（R8/ProGuard）
+            minifyEnabled true      // 未使用コード（Java/Kotlin）を削除
+            shrinkResources true    // 未使用リソース（画像/XML）を削除
             
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
@@ -60,18 +66,23 @@ android {
         jvmTarget = '17'
     }
 
+    // AAB（Android App Bundle）生成時の最適化設定
     bundle {
-        language { enableSplit = true }
-        density { enableSplit = true }
-        abi { enableSplit = true }
+        language { enableSplit = true } // ユーザーの言語設定に合わせた最小構成で配信
+        density { enableSplit = true }  // 端末の画面密度に合わせた画像のみ配信
+        abi { enableSplit = true }      // CPUアーキテクチャに合わせたバイナリのみ配信
     }
-} // ← ここで android ブロックを閉じる（重要！）
+} 
 
 dependencies {
+    // 標準ライブラリ（最小限に維持）
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
-    implementation 'com.google.android.gms:play-services-basement:18.4.0'
-    // ★ ここから下を追加：自動テストとスクリーンショット用のライブラリ
+    
+    // Play Age Signals API 用のベースライブラリ
+    implementation 'com.google.android.gms:play-services-basement:18.5.0'
+
+    // 自動テスト・スクリーンショット用
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.2.0'
