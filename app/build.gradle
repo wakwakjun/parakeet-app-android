@@ -3,7 +3,7 @@ plugins {
     id 'kotlin-android'
 }
 
-def appName = "supercatapp" 
+def appName = "budgieapp" 
 def developerName = "myuser"
 
 android {
