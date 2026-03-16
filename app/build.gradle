@@ -1,0 +1,79 @@
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+}
+
+def appName = "supercatapp" 
+def developerName = "myuser"
+
+android {
+    namespace "jp.${developerName}.${appName}"
+    compileSdk 35
+
+    // --- バージョン自動加算の仕組み ---
+    // 1. GitHub Actionsから直接渡されるプロパティ
+    // 2. 環境変数
+    // 3. どちらもなければデフォルト値「100」
+    def githubRunNumber = project.findProperty('VERSION_CODE') ?: System.getenv("GITHUB_RUN_NUMBER") ?: "100"
+    def autoVersionCode = githubRunNumber.toInteger()
+    def autoVersionName = "1.0.${githubRunNumber}"
+
+    defaultConfig {
+        applicationId "jp.myuser.supercatapp"
+        minSdk 21
+        targetSdk 35
+        
+        versionCode autoVersionCode
+        versionName autoVersionName
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        release {
+            // main.ymlで復元するファイル名に合わせる
+            storeFile file("release-key.jks") 
+            storePassword System.getenv("KEYSTORE_PASSWORD")
+            keyAlias System.getenv("KEY_ALIAS")
+            keyPassword System.getenv("KEY_PASSWORD")
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            
+            // ★極限ダイエット設定
+            minifyEnabled true      // 未使用コード削除
+            shrinkResources true    // 未使用リソース削除
+            
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    bundle {
+        language { enableSplit = true }
+        density { enableSplit = true }
+        abi { enableSplit = true }
+    }
+} // ← ここで android ブロックを閉じる（重要！）
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.9.0'
+    implementation 'com.google.android.gms:play-services-basement:18.4.0'
+    // ★ ここから下を追加：自動テストとスクリーンショット用のライブラリ
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.2.0'
+    androidTestImplementation 'androidx.test:rules:1.5.0'
+}

@@ -1,0 +1,89 @@
+name: Build Android App
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      # --- 画像軽量化ステップ ---
+      - name: Install WebP Tools
+        run: sudo apt-get install -y webp
+
+      - name: Convert Images to WebP
+        run: |
+          # 1. まず、過去の失敗で生成された可能性のある「.png.webp」などの不正ファイルを全削除
+          find app/src/main/res/ -type f -name "*.png.webp" -delete
+          find app/src/main/res/ -type f -name "*.jpg.webp" -delete
+
+          # 2. その上で、正しく変換を行う
+          for file in $(find app/src/main/res/ -type f \( -name "*.png" -o -name "*.jpg" \)); do
+            # 拡張子を丁寧に取り除く
+            filename="${file%.*}"
+            # 変換を実行 (例: ic_launcher_background.webp)
+            cwebp -q 75 "$file" -o "$filename.webp"
+            # 変換できたら元の重いファイルを消す
+            if [ -f "$filename.webp" ]; then
+              rm "$file"
+            fi
+          done
+          
+      # 1. Base64文字列からキーストアファイル(.jks)を復元
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release-key.jks
+
+      # 2. 軽量化された画像とバージョン番号を使ってビルドを実行
+      - name: Build AAB and APK
+        run: |
+          chmod +x gradlew
+          ./gradlew bundleRelease assembleRelease \
+            -PVERSION_CODE=${{ github.run_number }} \
+            -Pandroid.injected.signing.store.file=$(pwd)/app/release-key.jks \
+            -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+
+      # 3. Playストア用のAABを保存
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: cat-app-bundle-aab
+          path: app/build/outputs/bundle/release/*.aab
+
+      # 4. エミュレータ・実機確認用のAPKを保存
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: cat-app-apk
+          path: app/build/outputs/apk/release/*.apk
+
+      # 5. ビルド後にスクリーンショットを撮るステップ（安定化設定） ---
+      - name: run debug tests for screenshot
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 21
+          target: default
+          arch: x86
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          # ★ ここを true にすることで、テスト中のアニメーションをシステムレベルで無効化します
+          disable-animations: true
+          script: ./gradlew connectedCheck
+
+      - name: Upload Screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: /sdcard/main_screen.png
