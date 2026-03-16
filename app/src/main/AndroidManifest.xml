@@ -5,12 +5,17 @@
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
-        android:label="Cat App"
+        @comment/「Cat App」からリソース参照に変更。strings.xmlで名前を管理します
+        android:label="@string/app_name"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar">
 
         <activity
+            @comment/build.gradleのnamespaceが jp.myuser.budgieapp なので、
+            @comment/MainActivityがその直下にあれば「.MainActivity」で認識されます
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            @comment/画面回転を固定して3MB制限のためのレイアウト調整を簡略化する場合に追加（任意）
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
